@@ -8,10 +8,10 @@ use ark_ff::UniformRand;
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_relations::r1cs::ConstraintMatrices;
 use ark_relations::{lc, r1cs::ConstraintSystem};
+use ark_std::log2;
 use ark_std::rand::{rngs::StdRng, SeedableRng};
 use ark_std::Zero;
 use ark_std::{end_timer, start_timer};
-use ark_std::log2;
 use circom_compat::{read_witness, R1CSFile};
 use de_network::{DeMultiNet as Net, DeNet, DeSerNet};
 use merlin::Transcript;
@@ -176,13 +176,10 @@ fn test_helper(l: usize, sub_prover_id: usize, num_txs: usize) {
         })
         .collect::<Vec<_>>();
     r1cs.constraints = new_constraints;
-    let witness_reader =
-        BufReader::new(File::open("/root/hekaton-system/polygon.0.json").unwrap());
+    let witness_reader = BufReader::new(File::open("/root/hekaton-system/polygon.0.json").unwrap());
     let witness = read_witness(witness_reader);
     r1cs.witness = (0..num_txs)
-        .flat_map(|_| {
-            witness.clone()
-        })
+        .flat_map(|_| witness.clone())
         .collect::<Vec<_>>();
     r1cs.header.n_constraints *= num_txs as u32;
     r1cs.header.n_wires *= num_txs as u32;
@@ -350,7 +347,7 @@ fn test_helper(l: usize, sub_prover_id: usize, num_txs: usize) {
 }
 
 fn main() {
-    let (l, sub_prover_id,  num_txs) = init();
+    let (l, sub_prover_id, num_txs) = init();
     test_helper(l, sub_prover_id, num_txs);
     Net::deinit();
 }
