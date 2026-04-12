@@ -2,26 +2,26 @@
 // RAYON_NUM_THREADS=N RUSTFLAGS='-C target-cpu=native' target-feature=+bmi2,+adx" cargo +nightly build --release --example snark_pre_sha256 --no-default-features --features "parallel asm"
 // RAYON_NUM_THREADS=32 ./snark_pre_sha256 0/1/2/3 ../../../snark/data/4
 
-use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+use ark_bls12_381::{Bls12_381, Fr};
 use ark_ec::pairing::Pairing;
+use ark_ff::UniformRand;
+use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+use ark_relations::r1cs::ConstraintSystem;
+use ark_relations::r1cs::{ConstraintMatrices, ConstraintSynthesizer};
 use ark_std::log2;
-use my_kzg::biv_batch_kzg::BivBatchKZG;
+use ark_std::rand::{rngs::StdRng, SeedableRng};
+use ark_std::{end_timer, start_timer};
+use de_network::{DeMultiNet as Net, DeNet, DeSerNet};
 use merlin::Transcript;
 use my_ipa::helper::generate_r1cs_de_polynomials;
-use de_network::{DeMultiNet as Net, DeNet, DeSerNet};
-use std::path::PathBuf;
-use structopt::StructOpt;
-use ark_std::rand::{rngs::StdRng, SeedableRng};
-use ark_ff::UniformRand;
-use std::time::Instant;
-use ark_relations::r1cs::{ConstraintMatrices, ConstraintSynthesizer};
-use my_snark::indexer::RawNEvals;
-use my_snark::indexer::Indexer;
 use my_ipa::r1cs::R1CSVectors;
-use ark_std::{start_timer, end_timer};
-use ark_bls12_381::{Bls12_381, Fr};
-use ark_relations::r1cs::ConstraintSystem;
+use my_kzg::biv_batch_kzg::BivBatchKZG;
 use my_snark::circuits::SimpleSha256Circuit;
+use my_snark::indexer::Indexer;
+use my_snark::indexer::RawNEvals;
+use std::path::PathBuf;
+use std::time::Instant;
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]
@@ -62,14 +62,18 @@ pub fn generate_partial_matrices<P: Pairing>(
     m: usize,
     l: usize,
     _subprover_id: usize,
-) -> (ConstraintMatrices<P::ScalarField>, Vec<P::ScalarField>, RawNEvals) {
+) -> (
+    ConstraintMatrices<P::ScalarField>,
+    Vec<P::ScalarField>,
+    RawNEvals,
+) {
     let cs = ConstraintSystem::<P::ScalarField>::new_ref();
     circuit.clone().generate_constraints(cs.clone()).unwrap();
     let cs_matrix = cs.to_matrices().unwrap();
-    
+
     let num_constraints = cs.num_constraints();
     let _num_variables = cs.num_witness_variables() + cs.num_instance_variables();
-    
+
     let ml = m * l;
     let sqrt_ml = (ml as f64).sqrt() as usize;
 
@@ -104,7 +108,7 @@ pub fn generate_partial_matrices<P: Pairing>(
     let mut row_start = 0;
     for (row_idx, &row_end) in cs_matrix.a.1.iter().enumerate() {
         let (low, high) = decompose(row_idx, sqrt_ml);
-        
+
         for &(coeff, var) in &cs_matrix.a.0[row_start..row_end] {
             n_evals.row_pa_low[low] += 1;
             n_evals.row_pa_high[high] += 1;
@@ -140,7 +144,8 @@ pub fn generate_partial_matrices<P: Pairing>(
 fn test_helper<E: Pairing>(m: usize, l: usize, sub_prover_id: usize) {
     let time = Instant::now();
     let circuit = SimpleSha256Circuit::<E::ScalarField>::new(m * l);
-    let (cs_matrix, witness, n_evals) = generate_partial_matrices::<E>(&circuit, m, l, sub_prover_id);
+    let (cs_matrix, witness, n_evals) =
+        generate_partial_matrices::<E>(&circuit, m, l, sub_prover_id);
     println!("Generate R1CS instances time: {:?}", time.elapsed());
 
     let mut rng = StdRng::seed_from_u64(0u64);
@@ -182,7 +187,10 @@ fn test_helper<E: Pairing>(m: usize, l: usize, sub_prover_id: usize) {
 
     let ((m_powers, m_srs, m_y_srs), m_v_srs) = {
         if x_degree == m_degree {
-            ((powers.clone(), x_srs.clone(), y_srs.clone()), v_srs.clone())
+            (
+                (powers.clone(), x_srs.clone(), y_srs.clone()),
+                v_srs.clone(),
+            )
         } else {
             BivBatchKZG::<E>::read_or_setup(
                 &mut rng,
@@ -287,10 +295,8 @@ fn main() {
     if let Some(num_cores_per_machine) = setup_only {
         let mut rng = StdRng::seed_from_u64(0u64);
         let _ = Fr::rand(&mut rng);
-        let domain_x =
-            <GeneralEvaluationDomain<Fr> as EvaluationDomain<Fr>>::new(m).unwrap();
-        let domain_y =
-            <GeneralEvaluationDomain<Fr> as EvaluationDomain<Fr>>::new(l).unwrap();
+        let domain_x = <GeneralEvaluationDomain<Fr> as EvaluationDomain<Fr>>::new(m).unwrap();
+        let domain_y = <GeneralEvaluationDomain<Fr> as EvaluationDomain<Fr>>::new(l).unwrap();
         let x_degree = m - 1;
         let y_degree = l - 1;
         BivBatchKZG::<Bls12_381>::write_setup_only(

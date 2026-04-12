@@ -6,10 +6,10 @@ use ark_bn254::Bn254;
 use ark_ff::UniformRand;
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_relations::{lc, r1cs::ConstraintSystem};
+use ark_std::log2;
 use ark_std::rand::{rngs::StdRng, SeedableRng};
 use ark_std::Zero;
 use ark_std::{end_timer, start_timer};
-use ark_std::log2;
 use circom_compat::{read_witness, R1CSFile};
 use de_network::{DeMultiNet as Net, DeNet, DeSerNet};
 use merlin::Transcript;
@@ -59,8 +59,7 @@ fn test_helper(l: usize, sub_prover_id: usize, num_txs: usize) {
     // This is the tx number of **Each** sub-prover
     // Repeat the same R1CS a couple times, using a random witness each time
     // let mut rng = ark_std::test_rng();
-    let witness_reader =
-            BufReader::new(File::open("/root/hekaton-system/polygon.0.json").unwrap());
+    let witness_reader = BufReader::new(File::open("/root/hekaton-system/polygon.0.json").unwrap());
     r1cs.witness = read_witness(witness_reader);
     for _ in 0..num_txs {
         r1cs.generate_constraints(cs.clone()).unwrap();

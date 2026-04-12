@@ -2,26 +2,26 @@
 // RAYON_NUM_THREADS=N RUSTFLAGS='-C target-cpu=native' target-feature=+bmi2,+adx" cargo +nightly build --release --example snark_nopre_sha256 --no-default-features --features "parallel asm"
 // RAYON_NUM_THREADS=32 ./snark_nopre_sha256 0/1/2/3 ../../../snark/data/4
 
-use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
-use ark_ec::pairing::Pairing;
 use ark_bls12_381::Bls12_381;
+use ark_ec::pairing::Pairing;
 use ark_ff::UniformRand;
-use std::path::PathBuf;
-use structopt::StructOpt;
+use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
 use ark_std::rand::{rngs::StdRng, SeedableRng};
-use std::time::Instant;
-use ark_relations::r1cs::{ConstraintSystem, ConstraintSynthesizer};
-use rayon::prelude::*;
 use de_network::{DeMultiNet as Net, DeNet};
-use my_kzg::biv_batch_kzg::BivBatchKZG;
 use merlin::Transcript;
+use my_ipa::r1cs::R1CSVectors;
 use my_ipa::{
     helper::{generate_r1cs_de_polynomials, generate_r1cs_pub_polynomials},
     r1cs::R1CSPubVectors,
 };
-use my_ipa::r1cs::R1CSVectors;
-use my_snark::snark_linear::DeSNARKLinear;
+use my_kzg::biv_batch_kzg::BivBatchKZG;
 use my_snark::circuits::SimpleSha256Circuit;
+use my_snark::snark_linear::DeSNARKLinear;
+use rayon::prelude::*;
+use std::path::PathBuf;
+use std::time::Instant;
+use structopt::StructOpt;
 
 type MyField = <Bls12_381 as Pairing>::ScalarField;
 
@@ -78,7 +78,10 @@ fn main() {
     let cs_matrix = cs.to_matrices().unwrap();
 
     println!("Number of constraints: {:?}", cs.num_constraints());
-    println!("Number of variables: {:?}", cs.num_witness_variables() + cs.num_instance_variables());
+    println!(
+        "Number of variables: {:?}",
+        cs.num_witness_variables() + cs.num_instance_variables()
+    );
 
     let r1cs_vecs_all: Vec<R1CSVectors<Bls12_381>> = (0..l)
         .map(|sub_prover_id| {
@@ -114,7 +117,11 @@ fn main() {
         &domain_y,
         &mut transcript,
     );
-    println!("Prover {:?} prove total time: {:?}", sub_prover_id, time.elapsed());
+    println!(
+        "Prover {:?} prove total time: {:?}",
+        sub_prover_id,
+        time.elapsed()
+    );
 
     if Net::am_master() {
         let proof_size = DeSNARKLinear::<Bls12_381>::get_proof_size(proof.as_ref().unwrap());
