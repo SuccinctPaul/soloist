@@ -311,5 +311,16 @@ fn main() {
         return;
     }
     test_helper::<Bn254>(m, l, sub_prover_id);
+
+    // Print network statistics
+    let stats = Net::stats();
+    println!("\n=== Network Statistics ===");
+    println!("Peer ID: {}", sub_prover_id);
+    println!("Bytes sent: {} bytes", stats.bytes_sent);
+    println!("Bytes received: {} bytes", stats.bytes_recv);
+    println!("Broadcasts: {}", stats.broadcasts);
+    println!("Messages to master: {}", stats.to_master);
+    println!("Messages from master: {}", stats.from_master);
+
     Net::deinit();
 }
